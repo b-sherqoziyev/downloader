@@ -10,11 +10,7 @@ load_dotenv()
 
 # Configuration
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-DB_NAME = os.getenv("DB_NAME")
-DB_USER = os.getenv("DB_USER")
-DB_PASS = os.getenv("DB_PASS")
-DB_HOST = os.getenv("DB_HOST", "localhost")
-DB_PORT = os.getenv("DB_PORT", "5432")
+DATABASE_URL = os.getenv("DATABASE_URL")
 
 # Configure Logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -24,17 +20,17 @@ if not BOT_TOKEN:
     logger.error("BOT_TOKEN not found in .env file")
     exit(1)
 
+if not DATABASE_URL:
+    logger.error("DATABASE_URL not found in .env file")
+    exit(1)
+
 bot = telebot.TeleBot(BOT_TOKEN)
 
 # Initialize PostgreSQL Connection Pool
 try:
     db_pool = psycopg2.pool.SimpleConnectionPool(
         1, 10,
-        user=DB_USER,
-        password=DB_PASS,
-        host=DB_HOST,
-        port=DB_PORT,
-        database=DB_NAME
+        dsn=DATABASE_URL
     )
     if db_pool:
         logger.info("PostgreSQL connection pool created successfully")
