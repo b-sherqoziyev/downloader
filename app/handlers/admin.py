@@ -214,12 +214,20 @@ async def process_broadcast(message: Message, state: FSMContext):
     
     for user_id in users:
         try:
-            # We only apply link_preview_options if it's a text message to avoid TypeError on media
-            kwargs = {}
             if message.text:
-                kwargs['link_preview_options'] = LinkPreviewOptions(is_disabled=True)
+                # For text messages, we can use send_message to disable link previews
+                await message.bot.send_message(
+                    chat_id=user_id,
+                    text=message.text,
+                    entities=message.entities,
+                    link_preview_options=LinkPreviewOptions(is_disabled=True),
+                    reply_markup=message.reply_markup
+                )
+            else:
+                # For media (photo, video, etc.), we use send_copy
+                # Note: copy_message does not support link_preview_options
+                await message.send_copy(chat_id=user_id)
                 
-            await message.send_copy(chat_id=user_id, **kwargs)
             success_count += 1
             await asyncio.sleep(0.05) # Rate limiting bot api 30 msg/sec
         except Exception as e:
