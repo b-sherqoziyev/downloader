@@ -214,14 +214,16 @@ async def process_broadcast(message: Message, state: FSMContext):
     
     for user_id in users:
         try:
-            # send_copy accepts kwargs for the underlying send method (send_message, send_photo etc.)
-            await message.send_copy(
-                chat_id=user_id, 
-                link_preview_options=LinkPreviewOptions(is_disabled=True)
-            )
+            # We only apply link_preview_options if it's a text message to avoid TypeError on media
+            kwargs = {}
+            if message.text:
+                kwargs['link_preview_options'] = LinkPreviewOptions(is_disabled=True)
+                
+            await message.send_copy(chat_id=user_id, **kwargs)
             success_count += 1
             await asyncio.sleep(0.05) # Rate limiting bot api 30 msg/sec
-        except Exception:
+        except Exception as e:
+            logger.error(f"Broadcast error for user {user_id}: {e}")
             fail_count += 1
             
     await message.answer(f"✅ Tarqatma yakunlandi!\n\n🟢 Muvaffaqiyatli: {success_count}\n🔴 Yetib bormadi (Botni bloklagan): {fail_count}", reply_markup=get_admin_keyboard())

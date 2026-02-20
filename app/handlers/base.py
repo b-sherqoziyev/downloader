@@ -32,4 +32,16 @@ async def start_handler(message: Message):
         except Exception:
             pass
             
-    await message.answer("Salom! Instagram yoki YouTube video havolasini yuboring.")
+    await message.answer("""
+Salom! Bu mashhur ijtimoiy tarmoqlardan video/foto/audio yuklab olish uchun bot.\n\n
+Uni qanday ishlatish kerak:
+1. Ijtimoiy tarmoqlardan biriga kiring.
+2. Qiziqarli video/foto tanlang.
+3. "Link nusxalash" tugmasini bosing.
+4. Link botga yuboring va yuklab olingan faylni oling!
+
+🔗 Botdan yuklab olish mumkin:
+• YouTube
+• Instagram
+• TikTok
+• Twitter""")
