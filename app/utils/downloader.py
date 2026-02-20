@@ -66,6 +66,13 @@ def sync_download_video(url, is_instagram):
                 'outtmpl': os.path.join(final_download_path, '%(title)s.%(ext)s'),
                 'quiet': True,
                 'no_warnings': True,
+                'nocheckcertificate': True,
+                'extractor_args': {
+                    'youtube': {
+                        'player_client': ['android', 'ios'],
+                        'skip': ['hls', 'dash']
+                    }
+                },
                 'http_headers': {
                     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
                 }
