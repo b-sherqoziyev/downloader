@@ -211,7 +211,8 @@ async def process_broadcast(message: Message, state: FSMContext):
     
     for user_id in users:
         try:
-            await message.send_copy(chat_id=user_id)
+            # send_copy accepts kwargs for the underlying send method (send_message, send_photo etc.)
+            await message.send_copy(chat_id=user_id, disable_web_page_preview=True)
             success_count += 1
             await asyncio.sleep(0.05) # Rate limiting bot api 30 msg/sec
         except Exception:
