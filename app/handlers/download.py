@@ -42,7 +42,7 @@ async def handle_video_url(message: Message, state: FSMContext):
         video_id = cached_data['video_file_id']
         markup = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="🎵 Audioni yuklab olish", callback_data=f"audio:{url_hash}")],
-            [InlineKeyboardButton(text="↗️ Do'stlarga ulashish", switch_inline_query=f"share_vid_{url_hash}")]
+            [InlineKeyboardButton(text="↗️ Do'stlarga ulashish", switch_inline_query=f"zo'r bot ekan")]
         ])
         await message.answer_video(
             video_id, 
@@ -66,7 +66,7 @@ async def handle_video_url(message: Message, state: FSMContext):
     
     markup = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🎵 Audioni yuklab olish", callback_data=f"audio:{url_hash}")],
-        [InlineKeyboardButton(text="↗️ Do'stlarga ulashish", switch_inline_query=f"share_vid_{url_hash}")]
+        [InlineKeyboardButton(text="↗️ Do'stlarga ulashish", switch_inline_query=f"zo'r bot ekan")]
     ])
     
     try:
@@ -102,7 +102,7 @@ async def process_audio_callback(callback: types.CallbackQuery):
     cached_data = await get_cached_media(url_hash)
     if cached_data and cached_data.get('audio_file_id'):
         markup = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="↗️ Do'stlarga ulashish", switch_inline_query=f"share_aud_{url_hash}")]
+            [InlineKeyboardButton(text="↗️ Do'stlarga ulashish", switch_inline_query=f"zo'r bot ekan")]
         ])
         await callback.message.answer_audio(
             cached_data['audio_file_id'], 
@@ -139,7 +139,7 @@ async def process_audio_callback(callback: types.CallbackQuery):
             
         audio_file = FSInputFile(result["audio_path"])
         markup = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="↗️ Do'stlarga ulashish", switch_inline_query=f"share_aud_{url_hash}")]
+            [InlineKeyboardButton(text="↗️ Do'stlarga ulashish", switch_inline_query=f"zo'r bot ekan")]
         ])
         sent_message = await callback.message.answer_audio(
             audio_file, 
