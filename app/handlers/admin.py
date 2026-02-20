@@ -4,7 +4,7 @@ import pytz
 from datetime import datetime
 from aiogram import Router, F, types
 from aiogram.filters import Command
-from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
+from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery, LinkPreviewOptions
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 import logging
@@ -212,7 +212,10 @@ async def process_broadcast(message: Message, state: FSMContext):
     for user_id in users:
         try:
             # send_copy accepts kwargs for the underlying send method (send_message, send_photo etc.)
-            await message.send_copy(chat_id=user_id, disable_web_page_preview=True)
+            await message.send_copy(
+                chat_id=user_id, 
+                link_preview_options=LinkPreviewOptions(is_disabled=True)
+            )
             success_count += 1
             await asyncio.sleep(0.05) # Rate limiting bot api 30 msg/sec
         except Exception:
