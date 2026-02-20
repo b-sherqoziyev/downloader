@@ -1,7 +1,7 @@
 import asyncio
 import re
 import pytz
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from aiogram import Router, F, types
 from aiogram.filters import Command
 from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery, LinkPreviewOptions
@@ -65,18 +65,21 @@ async def admin_stats_callback(callback: CallbackQuery):
         return
         
     tz = pytz.timezone('Asia/Tashkent')
-    current_time = datetime.now(tz)
-    today_start = current_time.replace(hour=0, minute=0, second=0, microsecond=0)
-    month_start = current_time.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    current_time_tashkent = datetime.now(tz)
+    
+    # We must use UTC for database querying to match TIMESTAMP WITH TIME ZONE
+    current_time_utc = datetime.now(timezone.utc)
+    today_start_utc = current_time_utc.replace(hour=0, minute=0, second=0, microsecond=0)
+    month_start_utc = current_time_utc.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
     
     try:
-        total, today, month = await get_stats(today_start, month_start)
+        total, today, month = await get_stats(today_start_utc, month_start_utc)
         stats_msg = (
             f"📊 <b>Bot Statistikasi</b>\n\n"
             f"👥 Umumiy foydalanuvchilar: {total} ta\n"
             f"📅 Bugun qo'shilganlar: {today} ta\n"
             f"🗓 Shu oy qo'shilganlar: {month} ta\n\n"
-            f"🕒 Hozirgi vaqt: {current_time.strftime('%Y-%m-%d %H:%M:%S')}"
+            f"🕒 Hozirgi vaqt: {current_time_tashkent.strftime('%Y-%m-%d %H:%M:%S')}"
         )
         await callback.message.delete()
         await callback.message.answer(stats_msg, reply_markup=get_admin_keyboard(), parse_mode='HTML')

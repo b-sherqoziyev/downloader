@@ -3,6 +3,7 @@ import shutil
 import uuid
 import asyncio
 import logging
+from datetime import datetime, timezone, timedelta
 from concurrent.futures import ThreadPoolExecutor
 from app.config import DOWNLOADS_DIR
 import instaloader
@@ -61,12 +62,14 @@ def sync_download_video(url, is_instagram):
             
         else: # is_youtube
             ydl_opts = {
-                'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
+                'format': 'best',
                 'outtmpl': os.path.join(final_download_path, '%(title)s.%(ext)s'),
                 'quiet': True,
                 'no_warnings': True,
+                # Use cookies from system browser to bypass "Sign in" bot check for YouTube
+                'cookiesfrombrowser': ('chrome',), 
                 'http_headers': {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
                 }
             }
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
