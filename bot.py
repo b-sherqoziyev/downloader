@@ -2,6 +2,8 @@ import telebot
 import os
 import logging
 import psycopg2
+import pytz
+from datetime import datetime
 from psycopg2 import pool
 from dotenv import load_dotenv
 
@@ -11,6 +13,12 @@ load_dotenv()
 # Configuration
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 DATABASE_URL = os.getenv("DATABASE_URL")
+ADMIN_ID = os.getenv("ADMIN_ID")
+if ADMIN_ID:
+    try:
+        ADMIN_ID = int(ADMIN_ID)
+    except ValueError:
+        ADMIN_ID = None
 
 # Configure Logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -51,7 +59,7 @@ def init_db():
             username VARCHAR(255),
             first_name VARCHAR(255),
             last_name VARCHAR(255),
-            joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            joined_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
         );
         """
         cur.execute(create_table_query)
@@ -69,30 +77,81 @@ def init_db():
 def start_handler(message):
     user = message.from_user
     conn = None
+    
+    # Tashkent time
+    tz = pytz.timezone('Asia/Tashkent')
+    current_time = datetime.now(tz)
+    
     try:
         conn = db_pool.getconn()
         cur = conn.cursor()
         
-        # Professional UPSERT (Insert or Update)
-        # We use ON CONFLICT DO NOTHING to simply ignore if user exists,
-        # OR we could update the 'last_name' etc. Here we assume we just want to save new users.
-        insert_query = """
-        INSERT INTO telegram_users (user_id, username, first_name, last_name)
-        VALUES (%s, %s, %s, %s)
-        ON CONFLICT (user_id) DO UPDATE 
-        SET username = EXCLUDED.username, 
-            first_name = EXCLUDED.first_name, 
-            last_name = EXCLUDED.last_name;
-        """
+        # Check if user exists
+        cur.execute("SELECT user_id FROM telegram_users WHERE user_id = %s", (user.id,))
+        exists = cur.fetchone()
         
-        cur.execute(insert_query, (user.id, user.username, user.first_name, user.last_name))
+        is_new_user = False
+        
+        if not exists:
+            insert_query = """
+            INSERT INTO telegram_users (user_id, username, first_name, last_name, joined_at)
+            VALUES (%s, %s, %s, %s, %s)
+            """
+            cur.execute(insert_query, (user.id, user.username, user.first_name, user.last_name, current_time))
+            is_new_user = True
+        else:
+            update_query = """
+            UPDATE telegram_users 
+            SET username = %s, first_name = %s, last_name = %s
+            WHERE user_id = %s
+            """
+            cur.execute(update_query, (user.username, user.first_name, user.last_name, user.id))
+            
         conn.commit()
-        cur.close()
         
         logger.info(f"User {user.id} ({user.first_name}) saved/updated in database.")
         
+        # Notify admin about new user
+        if is_new_user and ADMIN_ID:
+            try:
+                username_str = f"@{user.username}" if user.username else "yo'q"
+                admin_msg = (
+                    f"➕ <b>Yangi foydalanuvchi!</b>\n\n"
+                    f"<b>ID:</b> <code>{user.id}</code>\n"
+                    f"<b>Ism:</b> {user.first_name}\n"
+                    f"<b>Username:</b> {username_str}\n"
+                    f"<b>Vaqt:</b> {current_time.strftime('%Y-%m-%d %H:%M:%S')}"
+                )
+                bot.send_message(ADMIN_ID, admin_msg, parse_mode='HTML')
+            except Exception as e:
+                logger.error(f"Error sending msg to admin: {e}")
+                
+        # If admin, give stats
+        if ADMIN_ID and user.id == ADMIN_ID:
+            cur.execute("SELECT count(*) FROM telegram_users;")
+            total_users = cur.fetchone()[0]
+            
+            today_start = current_time.replace(hour=0, minute=0, second=0, microsecond=0)
+            cur.execute("SELECT count(*) FROM telegram_users WHERE joined_at >= %s;", (today_start,))
+            today_users = cur.fetchone()[0]
+            
+            month_start = current_time.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+            cur.execute("SELECT count(*) FROM telegram_users WHERE joined_at >= %s;", (month_start,))
+            month_users = cur.fetchone()[0]
+            
+            stats_msg = (
+                f"📊 <b>Bot Statistikasi</b>\n\n"
+                f"👥 Umumiy foydalanuvchilar: {total_users} ta\n"
+                f"📅 Bugun qo'shilganlar: {today_users} ta\n"
+                f"🗓 Shu oy qo'shilganlar: {month_users} ta\n\n"
+                f"🕒 Hozirgi vaqt: {current_time.strftime('%Y-%m-%d %H:%M:%S')}"
+            )
+            bot.send_message(user.id, stats_msg, parse_mode='HTML')
+            
+        cur.close()
+        
     except Exception as e:
-        logger.error(f"Error saving user {user.id}: {e}")
+        logger.error(f"Error in start_handler: {e}")
         if conn:
             conn.rollback()
     finally:
