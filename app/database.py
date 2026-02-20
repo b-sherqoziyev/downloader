@@ -23,6 +23,16 @@ async def init_db():
                 );
             ''')
             
+            # Channels table for forced subscription
+            await conn.execute('''
+                CREATE TABLE IF NOT EXISTS mandatory_channels (
+                    channel_id VARCHAR(255) PRIMARY KEY,
+                    url VARCHAR(255),
+                    title VARCHAR(255),
+                    added_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+                );
+            ''')
+            
             # Cached media table
             await conn.execute('''
                 CREATE TABLE IF NOT EXISTS cached_media (
@@ -32,6 +42,7 @@ async def init_db():
                     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
                 );
             ''')
+            
             logger.info("Database initialized successfully.")
     except Exception as e:
         logger.error(f"Error initializing database: {e}")
@@ -72,6 +83,40 @@ async def get_stats(today_start, month_start):
         today = await conn.fetchval('SELECT count(*) FROM telegram_users WHERE joined_at >= $1', today_start)
         month = await conn.fetchval('SELECT count(*) FROM telegram_users WHERE joined_at >= $1', month_start)
         return total, today, month
+
+async def get_all_users():
+    async with db_pool.acquire() as conn:
+        rows = await conn.fetch('SELECT user_id FROM telegram_users')
+        return [row['user_id'] for row in rows]
+
+# Channels Logic
+async def add_channel(channel_id, url, title):
+    async with db_pool.acquire() as conn:
+        try:
+            await conn.execute('''
+                INSERT INTO mandatory_channels (channel_id, url, title)
+                VALUES ($1, $2, $3)
+                ON CONFLICT (channel_id) DO UPDATE 
+                SET url = EXCLUDED.url, title = EXCLUDED.title
+            ''', str(channel_id), url, title)
+            return True
+        except Exception as e:
+            logger.error(f"Error adding channel: {e}")
+            return False
+
+async def remove_channel(channel_id):
+    async with db_pool.acquire() as conn:
+        try:
+            res = await conn.execute('DELETE FROM mandatory_channels WHERE channel_id = $1', str(channel_id))
+            return res != "DELETE 0"
+        except Exception as e:
+            logger.error(f"Error removing channel: {e}")
+            return False
+
+async def get_all_channels():
+    async with db_pool.acquire() as conn:
+        rows = await conn.fetch('SELECT channel_id, url, title FROM mandatory_channels ORDER BY added_at ASC')
+        return [dict(row) for row in rows]
 
 # Cache Logic
 async def get_cached_media(url_hash):

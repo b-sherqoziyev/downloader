@@ -1,7 +1,11 @@
 import os
 import hashlib
 from aiogram import Router, F, types
-from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, FSInputFile
+from aiogram.types import (
+    Message, InlineKeyboardMarkup, InlineKeyboardButton, FSInputFile,
+    InlineQuery, InlineQueryResultVideo, InlineQueryResultAudio
+)
+from aiogram.fsm.context import FSMContext
 from app.database import get_cached_media, save_cached_video, save_cached_audio
 from app.utils.downloader import async_download_video, async_extract_audio, cleanup
 
@@ -12,13 +16,20 @@ def get_url_hash(url: str) -> str:
     return hashlib.md5(url.encode('utf-8')).hexdigest()
 
 @router.message(F.text)
-async def handle_video_url(message: Message):
+async def handle_video_url(message: Message, state: FSMContext):
+    # Ignore if user is currently in any FSM state (like adding channels)
+    current_state = await state.get_state()
+    if current_state is not None:
+        return
+        
     url = message.text.strip()
     is_instagram = "instagram.com" in url
+    is_tiktok = "tiktok.com" in url
+    is_twitter = "twitter.com" in url or "x.com" in url
     is_youtube = "youtube.com" in url or "youtu.be" in url
     
-    if not (is_instagram or is_youtube):
-        await message.reply("Iltimos, to'g'ri Instagram yoki YouTube havolasini yuboring.")
+    if not (is_instagram or is_youtube or is_tiktok or is_twitter):
+        await message.reply("Iltimos, to'g'ri (Instagram, YouTube, TikTok yoki X/Twitter) havolasini yuboring.")
         return
 
     loader_message = await message.answer("Video tekshirilmoqda...", disable_notification=True)
@@ -30,7 +41,8 @@ async def handle_video_url(message: Message):
     if cached_data and cached_data.get('video_file_id'):
         video_id = cached_data['video_file_id']
         markup = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="🎵 Audioni yuklab olish", callback_data=f"audio:{url_hash}")]
+            [InlineKeyboardButton(text="🎵 Audioni yuklab olish", callback_data=f"audio:{url_hash}")],
+            [InlineKeyboardButton(text="↗️ Do'stlarga ulashish", switch_inline_query=f"share_vid_{url_hash}")]
         ])
         await message.answer_video(
             video_id, 
@@ -53,7 +65,8 @@ async def handle_video_url(message: Message):
     caption = result["caption"]
     
     markup = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🎵 Audioni yuklab olish", callback_data=f"audio:{url_hash}")]
+        [InlineKeyboardButton(text="🎵 Audioni yuklab olish", callback_data=f"audio:{url_hash}")],
+        [InlineKeyboardButton(text="↗️ Do'stlarga ulashish", switch_inline_query=f"share_vid_{url_hash}")]
     ])
     
     try:
@@ -88,9 +101,13 @@ async def process_audio_callback(callback: types.CallbackQuery):
     # 1. Check Audio Cache
     cached_data = await get_cached_media(url_hash)
     if cached_data and cached_data.get('audio_file_id'):
+        markup = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="↗️ Do'stlarga ulashish", switch_inline_query=f"share_aud_{url_hash}")]
+        ])
         await callback.message.answer_audio(
             cached_data['audio_file_id'], 
-            caption="Audio keshdan keldi! ⚡"
+            caption="Audio yuklandi! ⚡",
+            reply_markup=markup
         )
         await callback.answer()
         return
@@ -121,10 +138,14 @@ async def process_audio_callback(callback: types.CallbackQuery):
             return
             
         audio_file = FSInputFile(result["audio_path"])
+        markup = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="↗️ Do'stlarga ulashish", switch_inline_query=f"share_aud_{url_hash}")]
+        ])
         sent_message = await callback.message.answer_audio(
             audio_file, 
             caption="Instagram Audio 🎵",
-            performer="Smart Downloader Bot"
+            performer="Smart Downloader Bot",
+            reply_markup=markup
         )
         
         audio_id = sent_message.audio.file_id
@@ -151,3 +172,43 @@ async def process_audio_callback(callback: types.CallbackQuery):
             await audio_loader.delete()
         except Exception:
             pass
+
+@router.inline_query()
+async def process_inline_query(inline_query: InlineQuery):
+    query = inline_query.query.strip()
+    
+    # Check if query contains the trigger string and a hash
+    if query.startswith("share_"):
+        parts = query.split("_")
+        if len(parts) == 3:
+            media_type = parts[1] # "vid" or "aud"
+            url_hash = parts[2]
+            
+            cached_data = await get_cached_media(url_hash)
+            if not cached_data:
+                return
+                
+            results = []
+            
+            if media_type == "vid" and cached_data.get('video_file_id'):
+                results.append(
+                    InlineQueryResultVideo(
+                        id=url_hash,
+                        video_file_id=cached_data['video_file_id'],
+                        title="🎥 Videoni Yuborish",
+                        description="Ushbu videoni do'stingizga yuboring",
+                        mime_type="video/mp4" # Telegram requires this sometimes, default to mp4
+                    )
+                )
+            elif media_type == "aud" and cached_data.get('audio_file_id'):
+                 results.append(
+                    InlineQueryResultAudio(
+                        id=url_hash,
+                        audio_file_id=cached_data['audio_file_id'],
+                        title="🎵 Audioni Yuborish",
+                        description="Ushbu qo'shiqni do'stingizga yuboring"
+                    )
+                )
+                
+            if results:
+                await inline_query.answer(results, cache_time=300, is_personal=True)

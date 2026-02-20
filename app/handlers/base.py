@@ -4,7 +4,7 @@ from aiogram.types import Message
 import pytz
 from datetime import datetime
 from app.config import ADMIN_ID
-from app.database import save_user, get_stats
+from app.database import save_user
 
 router = Router()
 
@@ -33,28 +33,3 @@ async def start_handler(message: Message):
             pass
             
     await message.answer("Salom! Instagram yoki YouTube video havolasini yuboring.")
-
-@router.message(Command("stat"))
-async def stat_handler(message: Message):
-    user = message.from_user
-    
-    if not ADMIN_ID or user.id != ADMIN_ID:
-        return
-        
-    tz = pytz.timezone('Asia/Tashkent')
-    current_time = datetime.now(tz)
-    today_start = current_time.replace(hour=0, minute=0, second=0, microsecond=0)
-    month_start = current_time.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-    
-    try:
-        total, today, month = await get_stats(today_start, month_start)
-        stats_msg = (
-            f"📊 <b>Bot Statistikasi</b>\n\n"
-            f"👥 Umumiy foydalanuvchilar: {total} ta\n"
-            f"📅 Bugun qo'shilganlar: {today} ta\n"
-            f"🗓 Shu oy qo'shilganlar: {month} ta\n\n"
-            f"🕒 Hozirgi vaqt: {current_time.strftime('%Y-%m-%d %H:%M:%S')}"
-        )
-        await message.answer(stats_msg, parse_mode='HTML')
-    except Exception as e:
-        await message.answer("Statistika olishda xatolik yuz berdi.")

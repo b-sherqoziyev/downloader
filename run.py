@@ -1,9 +1,11 @@
 import asyncio
 import logging
 from aiogram import Bot, Dispatcher
+from aiogram.fsm.storage.memory import MemoryStorage
 from app.config import BOT_TOKEN
 from app.database import init_db, close_db
-from app.handlers import base, download
+from app.handlers import base, download, admin
+from app.middlewares.subscription import CheckSubscriptionMiddleware
 
 # Setup structured logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -19,9 +21,13 @@ async def main():
     
     # Initialize Bot and Dispatcher
     bot = Bot(token=BOT_TOKEN)
-    dp = Dispatcher()
+    dp = Dispatcher(storage=MemoryStorage())
+    
+    # Global Middleware for subscriptions
+    dp.message.middleware(CheckSubscriptionMiddleware())
     
     # Register routers
+    dp.include_router(admin.router)
     dp.include_router(base.router)
     dp.include_router(download.router)
     
