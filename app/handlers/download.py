@@ -56,7 +56,7 @@ async def handle_video_url(message: Message, state: FSMContext):
     
     result = await async_download_video(url, is_instagram)
     if not result["success"]:
-        await message.reply(f"Uzr, videoni yuklab bo'lmadi.\nXato: {result.get('error')}")
+        await message.reply(f"Uzr, videoni yuklab bo'lmadi.")
         await loader_message.delete()
         return
         
