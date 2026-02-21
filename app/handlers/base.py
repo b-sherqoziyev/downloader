@@ -43,5 +43,4 @@ Uni qanday ishlatish kerak:
 🔗 Botdan yuklab olish mumkin:
 • YouTube
 • Instagram
-• TikTok
 • Twitter""")

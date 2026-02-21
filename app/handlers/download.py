@@ -24,12 +24,11 @@ async def handle_video_url(message: Message, state: FSMContext):
         
     url = message.text.strip()
     is_instagram = "instagram.com" in url
-    is_tiktok = "tiktok.com" in url
     is_twitter = "twitter.com" in url or "x.com" in url
     is_youtube = "youtube.com" in url or "youtu.be" in url
     
-    if not (is_instagram or is_youtube or is_tiktok or is_twitter):
-        await message.reply("Iltimos, to'g'ri (Instagram, YouTube, TikTok yoki X/Twitter) havolasini yuboring.")
+    if not (is_instagram or is_youtube or is_twitter):
+        await message.reply("Iltimos, to'g'ri (Instagram, YouTube yoki X/Twitter) havolasini yuboring.")
         return
 
     loader_message = await message.answer("Video tekshirilmoqda...", disable_notification=True)
