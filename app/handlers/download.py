@@ -84,7 +84,7 @@ async def handle_video_url(message: Message, state: FSMContext):
     except Exception as e:
         import logging
         logging.getLogger(__name__).error(f"Telegramga yuklashda xatolik: {e}")
-        await message.reply("Kechirasiz, videoni yuklash jarayonida potentsial xatolik yuz berdi.")
+        await message.reply("Kechirasiz, videoning hajmi katta.")
     finally:
         # Always cleanup the heavy MP4 file
         cleanup(result.get("folder", ""))
