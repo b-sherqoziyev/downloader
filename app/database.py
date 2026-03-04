@@ -19,9 +19,23 @@ async def init_db():
                     username VARCHAR(255),
                     first_name VARCHAR(255),
                     last_name VARCHAR(255),
-                    joined_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+                    joined_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                    is_active BOOLEAN DEFAULT TRUE,
+                    is_banned BOOLEAN DEFAULT FALSE
                 );
             ''')
+            
+            # Migration for old users: add new columns if they don't exist
+            try:
+                await conn.execute('ALTER TABLE telegram_users ADD COLUMN is_active BOOLEAN DEFAULT TRUE;')
+            except asyncpg.exceptions.DuplicateColumnError:
+                pass
+            
+            try:
+                await conn.execute('ALTER TABLE telegram_users ADD COLUMN is_banned BOOLEAN DEFAULT FALSE;')
+            except asyncpg.exceptions.DuplicateColumnError:
+                pass
+
             
             # Channels table for forced subscription
             await conn.execute('''
@@ -69,7 +83,7 @@ async def save_user(user_id, username, first_name, last_name, joined_at):
             else:
                 await conn.execute('''
                     UPDATE telegram_users 
-                    SET username = $1, first_name = $2, last_name = $3
+                    SET username = $1, first_name = $2, last_name = $3, is_active = TRUE
                     WHERE user_id = $4
                 ''', username, first_name, last_name, user_id)
                 return False
@@ -77,17 +91,65 @@ async def save_user(user_id, username, first_name, last_name, joined_at):
             logger.error(f"Error saving user {user_id}: {e}")
             return False
 
-async def get_stats(today_start, month_start):
+async def update_user_status(user_id, is_active=None, is_banned=None):
+    async with db_pool.acquire() as conn:
+        try:
+            if is_active is not None and is_banned is not None:
+                await conn.execute('UPDATE telegram_users SET is_active = $1, is_banned = $2 WHERE user_id = $3', is_active, is_banned, user_id)
+            elif is_active is not None:
+                await conn.execute('UPDATE telegram_users SET is_active = $1 WHERE user_id = $2', is_active, user_id)
+            elif is_banned is not None:
+                await conn.execute('UPDATE telegram_users SET is_banned = $1 WHERE user_id = $2', is_banned, user_id)
+        except Exception as e:
+            logger.error(f"Error updating status for user {user_id}: {e}")
+
+async def get_user(search_query):
+    # Search by ID or Username
+    async with db_pool.acquire() as conn:
+        query = 'SELECT * FROM telegram_users WHERE user_id::text = $1 OR username ILIKE $2 LIMIT 1'
+        search_like = search_query.replace('@', '')
+        row = await conn.fetchrow(query, search_query, search_like)
+        return dict(row) if row else None
+
+async def get_stats(today_start, wau_start, mau_start):
     async with db_pool.acquire() as conn:
         total = await conn.fetchval('SELECT count(*) FROM telegram_users')
         today = await conn.fetchval('SELECT count(*) FROM telegram_users WHERE joined_at >= $1', today_start)
-        month = await conn.fetchval('SELECT count(*) FROM telegram_users WHERE joined_at >= $1', month_start)
-        return total, today, month
+        wau = await conn.fetchval('SELECT count(*) FROM telegram_users WHERE joined_at >= $1', wau_start)
+        mau = await conn.fetchval('SELECT count(*) FROM telegram_users WHERE joined_at >= $1', mau_start)
+        active = await conn.fetchval('SELECT count(*) FROM telegram_users WHERE is_active = TRUE')
+        banned = await conn.fetchval('SELECT count(*) FROM telegram_users WHERE is_banned = TRUE')
+        return {
+            "total": total,
+            "today": today,
+            "wau": wau,
+            "mau": mau,
+            "active": active,
+            "banned": banned
+        }
 
-async def get_all_users():
+async def get_all_users(active_only=False):
     async with db_pool.acquire() as conn:
-        rows = await conn.fetch('SELECT user_id FROM telegram_users')
+        if active_only:
+            rows = await conn.fetch('SELECT user_id FROM telegram_users WHERE is_active = TRUE AND is_banned = FALSE')
+        else:
+            rows = await conn.fetch('SELECT user_id FROM telegram_users')
         return [row['user_id'] for row in rows]
+
+async def get_users_paginated(limit=10, offset=0):
+    async with db_pool.acquire() as conn:
+        rows = await conn.fetch('''
+            SELECT user_id, username, first_name, joined_at, is_active, is_banned 
+            FROM telegram_users 
+            ORDER BY joined_at DESC 
+            LIMIT $1 OFFSET $2
+        ''', limit, offset)
+        return [dict(row) for row in rows]
+
+async def get_users_total_count():
+    async with db_pool.acquire() as conn:
+        return await conn.fetchval('SELECT count(*) FROM telegram_users')
+
 
 # Channels Logic
 async def add_channel(channel_id, url, title):
@@ -113,10 +175,17 @@ async def remove_channel(channel_id):
             logger.error(f"Error removing channel: {e}")
             return False
 
-async def get_all_channels():
+async def get_all_channels(limit=None, offset=0):
     async with db_pool.acquire() as conn:
-        rows = await conn.fetch('SELECT channel_id, url, title FROM mandatory_channels ORDER BY added_at ASC')
+        if limit:
+            rows = await conn.fetch('SELECT channel_id, url, title FROM mandatory_channels ORDER BY added_at ASC LIMIT $1 OFFSET $2', limit, offset)
+        else:
+            rows = await conn.fetch('SELECT channel_id, url, title FROM mandatory_channels ORDER BY added_at ASC')
         return [dict(row) for row in rows]
+
+async def get_channels_count():
+    async with db_pool.acquire() as conn:
+        return await conn.fetchval('SELECT count(*) FROM mandatory_channels')
 
 # Cache Logic
 async def get_cached_media(url_hash):

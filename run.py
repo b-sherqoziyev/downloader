@@ -4,7 +4,8 @@ from aiogram import Bot, Dispatcher
 from aiogram.fsm.storage.memory import MemoryStorage
 from app.config import BOT_TOKEN
 from app.database import init_db, close_db
-from app.handlers import base, download, admin
+from app.handlers import base, download
+from app.handlers.admin import router as admin_router
 from app.middlewares.subscription import CheckSubscriptionMiddleware
 
 # Setup structured logging
@@ -27,7 +28,7 @@ async def main():
     dp.message.middleware(CheckSubscriptionMiddleware())
     
     # Register routers
-    dp.include_router(admin.router)
+    dp.include_router(admin_router)
     dp.include_router(base.router)
     dp.include_router(download.router)
     

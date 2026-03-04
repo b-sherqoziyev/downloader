@@ -1,9 +1,10 @@
 import os
+import asyncio
 import hashlib
 from aiogram import Router, F, types
 from aiogram.types import (
     Message, InlineKeyboardMarkup, InlineKeyboardButton, FSInputFile,
-    InlineQuery, InlineQueryResultVideo, InlineQueryResultAudio
+    InlineQuery, InlineQueryResultCachedVideo, InlineQueryResultCachedAudio
 )
 from aiogram.fsm.context import FSMContext
 from app.database import get_cached_media, save_cached_video, save_cached_audio
@@ -14,6 +15,18 @@ router = Router()
 def get_url_hash(url: str) -> str:
     """Generate MD5 hash for URL to use as DB Key"""
     return hashlib.md5(url.encode('utf-8')).hexdigest()
+
+async def animate_loading(message: Message, stop_event: asyncio.Event, base_text: str):
+    """Animates a message with moving dots while download is in progress"""
+    chars = ["🌑", "🌒", "🌓", "🌔", "🌕", "🌖", "🌗", "🌘"]
+    idx = 0
+    try:
+        while not stop_event.is_set():
+            await message.edit_text(f"{base_text} {chars[idx % len(chars)]}")
+            idx += 1
+            await asyncio.sleep(1)
+    except Exception:
+        pass
 
 @router.message(F.text)
 async def handle_video_url(message: Message, state: FSMContext):
@@ -37,24 +50,32 @@ async def handle_video_url(message: Message, state: FSMContext):
     url_hash = get_url_hash(url)
     cached_data = await get_cached_media(url_hash)
     
+    me = await message.bot.get_me()
+    
     if cached_data and cached_data.get('video_file_id'):
         video_id = cached_data['video_file_id']
         markup = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="🎵 Audioni yuklab olish", callback_data=f"audio:{url_hash}")],
-            [InlineKeyboardButton(text="↗️ Do'stlarga ulashish", switch_inline_query=f"zo'r bot ekan")]
         ])
         await message.answer_video(
             video_id, 
-            caption="Video keshdan yuklandi! ⚡", 
+            caption=f"Video keshdan yuklandi! ⚡\n\nVia @{me.username}", 
             reply_markup=markup
         )
         await loader_message.delete()
         return
 
     # 2. Download from scratch
-    await loader_message.edit_text("Video yuklanmoqda... Kuting ⏳")
+    stop_event = asyncio.Event()
+    base_text = "Video yuklanmoqda..."
+    animation_task = asyncio.create_task(animate_loading(loader_message, stop_event, base_text))
     
-    result = await async_download_video(url, is_instagram)
+    try:
+        result = await async_download_video(url, is_instagram)
+    finally:
+        stop_event.set()
+        await animation_task
+        
     if not result["success"]:
         await message.reply(f"Uzr, videoni yuklab bo'lmadi.")
         await loader_message.delete()
@@ -62,10 +83,13 @@ async def handle_video_url(message: Message, state: FSMContext):
         
     video_path = result["video_path"]
     caption = result["caption"]
-    
+    if not caption:
+        caption = f"Video - @{me.username}"
+    else:
+        caption = f"{caption}\n\nVia @{me.username}"
+        
     markup = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🎵 Audioni yuklab olish", callback_data=f"audio:{url_hash}")],
-        [InlineKeyboardButton(text="↗️ Do'stlarga ulashish", switch_inline_query=f"zo'r bot ekan")]
     ])
     
     try:
@@ -99,14 +123,13 @@ async def process_audio_callback(callback: types.CallbackQuery):
     
     # 1. Check Audio Cache
     cached_data = await get_cached_media(url_hash)
+    me = await callback.bot.get_me()
+    
     if cached_data and cached_data.get('audio_file_id'):
-        markup = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="↗️ Do'stlarga ulashish", switch_inline_query=f"zo'r bot ekan")]
-        ])
         await callback.message.answer_audio(
             cached_data['audio_file_id'], 
-            caption="Audio yuklandi! ⚡",
-            reply_markup=markup
+            caption=f"🎵 {me.full_name} orqali yuklab olindi",
+            performer=me.full_name
         )
         await callback.answer()
         return
@@ -119,8 +142,9 @@ async def process_audio_callback(callback: types.CallbackQuery):
     await callback.answer("Audio tayyorlanmoqda ⏳")
     audio_loader = await callback.message.answer("Audio ajratilmoqda...")
 
-    # We need to redownload video briefly to extract audio (since we deleted local MP4)
-    # Getting it directly from Telegram is faster using bot.download()
+    # Animation and Process
+    stop_event = asyncio.Event()
+    animation_task = asyncio.create_task(animate_loading(audio_loader, stop_event, "Audio ajratilmoqda..."))
     
     try:
         # Download from telegram to temp
@@ -130,21 +154,21 @@ async def process_audio_callback(callback: types.CallbackQuery):
         await callback.bot.download_file(video.file_path, destination=temp_video_path)
         
         # Extract Audio
-        result = await async_extract_audio(temp_video_path, f"temp_{url_hash}")
+        result = await async_extract_audio(temp_video_path, f"temp_{url_hash}", me.full_name)
+        
+        # Stop animation before proceeding with results
+        stop_event.set()
+        await animation_task
+        
         if not result["success"]:
             await callback.message.answer(result.get("error", "Audio olinishda xatolik."))
-            await audio_loader.delete()
             return
             
         audio_file = FSInputFile(result["audio_path"])
-        markup = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="↗️ Do'stlarga ulashish", switch_inline_query=f"zo'r bot ekan")]
-        ])
         sent_message = await callback.message.answer_audio(
             audio_file, 
-            caption="Instagram Audio 🎵",
-            performer="Smart Downloader Bot",
-            reply_markup=markup
+            caption=f"🎵 {me.full_name} orqali yuklab olindi",
+            performer=me.full_name
         )
         
         audio_id = sent_message.audio.file_id
@@ -158,6 +182,11 @@ async def process_audio_callback(callback: types.CallbackQuery):
         except Exception:
             pass
     finally:
+        # Stop animation if it's still running (in case of exception)
+        if not stop_event.is_set():
+            stop_event.set()
+            await animation_task
+            
         # Cleanup
         try:
             if 'temp_video_path' in locals() and os.path.exists(temp_video_path):
@@ -176,38 +205,42 @@ async def process_audio_callback(callback: types.CallbackQuery):
 async def process_inline_query(inline_query: InlineQuery):
     query = inline_query.query.strip()
     
-    # Check if query contains the trigger string and a hash
-    if query.startswith("share_"):
-        parts = query.split("_")
-        if len(parts) == 3:
-            media_type = parts[1] # "vid" or "aud"
-            url_hash = parts[2]
-            
-            cached_data = await get_cached_media(url_hash)
-            if not cached_data:
-                return
-                
-            results = []
-            
-            if media_type == "vid" and cached_data.get('video_file_id'):
-                results.append(
-                    InlineQueryResultVideo(
-                        id=url_hash,
-                        video_file_id=cached_data['video_file_id'],
-                        title="🎥 Videoni Yuborish",
-                        description="Ushbu videoni do'stingizga yuboring",
-                        mime_type="video/mp4" # Telegram requires this sometimes, default to mp4
-                    )
-                )
-            elif media_type == "aud" and cached_data.get('audio_file_id'):
-                 results.append(
-                    InlineQueryResultAudio(
-                        id=url_hash,
-                        audio_file_id=cached_data['audio_file_id'],
-                        title="🎵 Audioni Yuborish",
-                        description="Ushbu qo'shiqni do'stingizga yuboring"
-                    )
-                )
-                
-            if results:
-                await inline_query.answer(results, cache_time=300, is_personal=True)
+    # Check for vid_HASH or aud_HASH
+    if "_" not in query:
+        return
+        
+    parts = query.split("_")
+    if len(parts) != 2:
+        return
+        
+    media_type, url_hash = parts
+    
+    cached_data = await get_cached_media(url_hash)
+    if not cached_data:
+        return
+        
+    me = await inline_query.bot.get_me()
+    results = []
+    
+    if media_type == "vid" and cached_data.get('video_file_id'):
+        results.append(
+            InlineQueryResultCachedVideo(
+                id=url_hash,
+                video_file_id=cached_data['video_file_id'],
+                title="🎥 Videoni ulashish",
+                description="Do'stingizga yuborish uchun ustiga bosing",
+                caption=f"Video via @{me.username}"
+            )
+        )
+    elif media_type == "aud" and cached_data.get('audio_file_id'):
+         results.append(
+            InlineQueryResultCachedAudio(
+                id=url_hash,
+                audio_file_id=cached_data['audio_file_id'],
+                title="🎵 Audioni ulashish",
+                caption=f"Audio via @{me.username}"
+            )
+        )
+        
+    if results:
+        await inline_query.answer(results, cache_time=300, is_personal=False)

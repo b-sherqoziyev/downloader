@@ -2,8 +2,8 @@ import logging
 from typing import Any, Callable, Dict, Awaitable
 from aiogram import BaseMiddleware
 from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
-from app.database import get_all_channels
-from app.config import ADMIN_ID
+from app.database import get_all_channels, get_user, update_user_status
+from app.config import ADMIN_IDS
 
 logger = logging.getLogger(__name__)
 
@@ -15,19 +15,34 @@ class CheckSubscriptionMiddleware(BaseMiddleware):
         data: Dict[str, Any]
     ) -> Any:
         
-        if not isinstance(event, Message) or not event.text:
-            return await handler(event, data)
-            
-        text = event.text.lower()
-        if text.startswith(('/admin', '/addchannel', '/delchannel', '/channels', '/broadcast')):
+        if not hasattr(event, "from_user") or not event.from_user:
             return await handler(event, data)
             
         user_id = event.from_user.id
         
-        # Bypass check completely for the admin
-        if ADMIN_ID and user_id == ADMIN_ID:
+        # Bypass check completely for the admins
+        if user_id in ADMIN_IDS:
             return await handler(event, data)
             
+        # Check if user is banned
+        db_user = await get_user(str(user_id))
+        if db_user:
+            # If they just wrote something, they are active
+            if not db_user.get('is_active'):
+                import asyncio
+                asyncio.create_task(update_user_status(user_id, is_active=True))
+                
+            if db_user.get('is_banned'):
+                if isinstance(event, Message):
+                    await event.answer("🚫 Siz botdan foydalanishdan cheklangansiz.")
+                return
+
+        # Let basic commands pass to show main text
+        if isinstance(event, Message) and event.text:
+            text = event.text.lower()
+            if text.startswith(('/admin', '/start')):
+                pass # Still check sub for /start below
+                
         channels = await get_all_channels()
         
         if not channels:

@@ -5,10 +5,10 @@ import asyncio
 import logging
 from datetime import datetime, timezone, timedelta
 from concurrent.futures import ThreadPoolExecutor
-from app.config import DOWNLOADS_DIR
-import instaloader
 import yt_dlp
+import instaloader
 from moviepy import VideoFileClip
+from app.config import DOWNLOADS_DIR
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +31,16 @@ def sync_download_video(url, is_instagram):
     
     caption = ""
     video_path = None
+    
+    # Progress hook for yt-dlp
+    def ydl_progress_hook(d):
+        if d['status'] == 'downloading':
+            p = d.get('_percent_str', '0%')
+            s = d.get('_speed_str', 'N/A')
+            t = d.get('_eta_str', 'N/A')
+            # logger.info(f"Downloading: {p} at {s} ETA {t}")
+            # We can't easily call async from here without more glue, 
+            # but we can log it or use a shared state.
     
     try:
         if is_instagram:
@@ -58,7 +68,8 @@ def sync_download_video(url, is_instagram):
                 shutil.rmtree(download_target_folder, ignore_errors=True)
                 
             raw_caption = post.caption if post.caption else ""
-            caption = raw_caption[:1021] + "..." if len(raw_caption) > 1024 else raw_caption
+            caption = raw_caption[:1021] + "..." if len(raw_caption) > 1024 or len(raw_caption) < 1 else raw_caption
+            # Note: bot_username will be handled in the handler now
             
         else: # is_youtube
             ydl_opts = {
@@ -79,7 +90,7 @@ def sync_download_video(url, is_instagram):
             }
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(url, download=True)
-                title = info.get('title', 'YouTube Video')
+                title = info.get('title', 'Video')
                 caption = title[:1021] + "..." if len(title) > 1024 else title
                 
         # Find video
@@ -106,10 +117,11 @@ async def async_download_video(url, is_instagram):
     loop = asyncio.get_running_loop()
     return await loop.run_in_executor(executor, sync_download_video, url, is_instagram)
 
-def sync_extract_audio(video_path, request_id):
+def sync_extract_audio(video_path, request_id, bot_name="Bot"):
     final_download_path = os.path.join(DOWNLOADS_DIR, request_id)
     os.makedirs(final_download_path, exist_ok=True)
-    audio_path = os.path.join(final_download_path, "Instagram_Audio.mp3")
+    safe_name = bot_name.replace(" ", "_").replace("/", "_")
+    audio_path = os.path.join(final_download_path, f"{safe_name}.mp3")
     
     try:
         video_clip = VideoFileClip(video_path)
@@ -125,6 +137,6 @@ def sync_extract_audio(video_path, request_id):
         logger.error(f"Sync extract audio error: {e}")
         return {"success": False, "error": str(e)}
 
-async def async_extract_audio(video_path, request_id):
+async def async_extract_audio(video_path, request_id, bot_name="Bot"):
     loop = asyncio.get_running_loop()
-    return await loop.run_in_executor(executor, sync_extract_audio, video_path, request_id)
+    return await loop.run_in_executor(executor, sync_extract_audio, video_path, request_id, bot_name)
