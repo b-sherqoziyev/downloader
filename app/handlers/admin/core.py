@@ -1,5 +1,4 @@
-import pytz
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from aiogram import Router, F
 from aiogram.filters import Command
 from aiogram.types import Message, CallbackQuery
@@ -41,18 +40,17 @@ async def admin_stats_callback(callback: CallbackQuery):
     if not is_admin(callback.from_user.id):
         return
         
-    tz = pytz.timezone('Asia/Tashkent')
-    current_time_tashkent = datetime.now(tz)
+    # Use UTC for DB queries to match TIMESTAMPTZ and avoid hosting environment mismatches
+    now_utc = datetime.now(timezone.utc)
+    today_start = now_utc.replace(hour=0, minute=0, second=0, microsecond=0)
     
-    # Calculate intervals based on local time
-    today_start = current_time_tashkent.replace(hour=0, minute=0, second=0, microsecond=0)
+    # intervals
+    wau_start = today_start - timedelta(days=7)
+    mau_start = today_start - timedelta(days=30)
     
-    # 7 days ago (WAU)
-    import datetime as dt
-    wau_start = today_start - dt.timedelta(days=7)
-    
-    # 30 days ago (MAU)
-    mau_start = today_start - dt.timedelta(days=30)
+    # Tashkent timezone for display only
+    tz_tashkent = pytz.timezone('Asia/Tashkent')
+    current_time_tashkent = now_utc.astimezone(tz_tashkent)
     
     try:
         stats = await get_stats(today_start, wau_start, mau_start)
