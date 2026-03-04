@@ -41,17 +41,17 @@ async def admin_stats_callback(callback: CallbackQuery):
     if not is_admin(callback.from_user.id):
         return
         
-    # Use UTC for DB queries to match TIMESTAMPTZ and avoid hosting environment mismatches
-    now_utc = datetime.now(timezone.utc)
-    today_start = now_utc.replace(hour=0, minute=0, second=0, microsecond=0)
+    # Calculate UTC intervals as naive objects for DB compatibility
+    now_utc_aware = datetime.now(timezone.utc)
+    now_utc_naive = now_utc_aware.replace(tzinfo=None)
     
-    # intervals
+    today_start = now_utc_naive.replace(hour=0, minute=0, second=0, microsecond=0)
     wau_start = today_start - timedelta(days=7)
     mau_start = today_start - timedelta(days=30)
     
     # Tashkent timezone for display only
     tz_tashkent = pytz.timezone('Asia/Tashkent')
-    current_time_tashkent = now_utc.astimezone(tz_tashkent)
+    current_time_tashkent = now_utc_aware.astimezone(tz_tashkent)
     
     try:
         stats = await get_stats(today_start, wau_start, mau_start)

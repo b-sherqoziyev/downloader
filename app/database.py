@@ -12,6 +12,9 @@ async def init_db():
         db_pool = await asyncpg.create_pool(dsn=DATABASE_URL)
         
         async with db_pool.acquire() as conn:
+            # Set session timezone to UTC
+            await conn.execute("SET TIME ZONE 'UTC';")
+            
             # Users table
             await conn.execute('''
                 CREATE TABLE IF NOT EXISTS telegram_users (

@@ -12,9 +12,10 @@ router = Router()
 async def start_handler(message: Message):
     user = message.from_user
     
-    # Use UTC for DB consistency
+    # Use naive UTC for DB consistency
     from datetime import timezone
     current_time_utc = datetime.now(timezone.utc)
+    current_time_naive = current_time_utc.replace(tzinfo=None)
     
     # Use Tashkent for display
     tz = pytz.timezone('Asia/Tashkent')
@@ -25,8 +26,8 @@ async def start_handler(message: Message):
     if db_user and db_user.get('is_banned'):
         return
     
-    # Save user to DB (using UTC)
-    is_new = await save_user(user.id, user.username, user.first_name, user.last_name, current_time_utc)
+    # Save user to DB (using naive UTC)
+    is_new = await save_user(user.id, user.username, user.first_name, user.last_name, current_time_naive)
     
     if is_new and ADMIN_IDS:
         for admin_id in ADMIN_IDS:
