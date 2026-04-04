@@ -1,8 +1,9 @@
 import asyncio
 import logging
 from aiogram import Bot, Dispatcher
+from aiogram.client.telegram import TelegramAPIServer
 from aiogram.fsm.storage.memory import MemoryStorage
-from app.config import BOT_TOKEN
+from app.config import BOT_TOKEN, USE_LOCAL_API, LOCAL_API_SERVER_URL
 from app.database import init_db, close_db
 from app.handlers import base, download
 from app.handlers.admin import router as admin_router
@@ -21,7 +22,13 @@ async def main():
     await init_db()
     
     # Initialize Bot and Dispatcher
-    bot = Bot(token=BOT_TOKEN)
+    if USE_LOCAL_API:
+        logger.info(f"Local Bot API server ishlatilmoqda: {LOCAL_API_SERVER_URL}")
+        local_server = TelegramAPIServer.from_base(LOCAL_API_SERVER_URL)
+        bot = Bot(token=BOT_TOKEN, server=local_server)
+    else:
+        bot = Bot(token=BOT_TOKEN)
+        
     dp = Dispatcher(storage=MemoryStorage())
     
     # Global Middleware for subscriptions

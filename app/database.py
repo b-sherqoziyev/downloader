@@ -55,10 +55,16 @@ async def init_db():
                 CREATE TABLE IF NOT EXISTS cached_media (
                     url_hash VARCHAR(255) PRIMARY KEY,
                     video_file_id VARCHAR(255),
-                    audio_file_id VARCHAR(255),
+                    url TEXT,
                     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
                 );
             ''')
+            
+            # Migration: add url column if it doesn't exist
+            try:
+                await conn.execute('ALTER TABLE cached_media ADD COLUMN url TEXT;')
+            except asyncpg.exceptions.DuplicateColumnError:
+                pass
             
             logger.info("Database initialized successfully.")
     except Exception as e:
@@ -193,24 +199,35 @@ async def get_channels_count():
 # Cache Logic
 async def get_cached_media(url_hash):
     async with db_pool.acquire() as conn:
-        row = await conn.fetchrow('SELECT video_file_id, audio_file_id FROM cached_media WHERE url_hash = $1', url_hash)
+        row = await conn.fetchrow('SELECT video_file_id, url FROM cached_media WHERE url_hash = $1', url_hash)
         if row:
             return dict(row)
         return None
 
-async def save_cached_video(url_hash, video_file_id):
+async def save_cached_video(url_hash, video_file_id, url=None):
+    async with db_pool.acquire() as conn:
+        if url:
+             await conn.execute('''
+                INSERT INTO cached_media (url_hash, video_file_id, url)
+                VALUES ($1, $2, $3)
+                ON CONFLICT (url_hash) DO UPDATE 
+                SET video_file_id = EXCLUDED.video_file_id, url = EXCLUDED.url
+            ''', url_hash, video_file_id, url)
+        else:
+            await conn.execute('''
+                INSERT INTO cached_media (url_hash, video_file_id)
+                VALUES ($1, $2)
+                ON CONFLICT (url_hash) DO UPDATE 
+                SET video_file_id = EXCLUDED.video_file_id
+            ''', url_hash, video_file_id)
+
+async def save_url_to_cache(url_hash, url):
     async with db_pool.acquire() as conn:
         await conn.execute('''
-            INSERT INTO cached_media (url_hash, video_file_id)
+            INSERT INTO cached_media (url_hash, url)
             VALUES ($1, $2)
             ON CONFLICT (url_hash) DO UPDATE 
-            SET video_file_id = EXCLUDED.video_file_id
-        ''', url_hash, video_file_id)
+            SET url = EXCLUDED.url
+        ''', url_hash, url)
 
-async def save_cached_audio(url_hash, audio_file_id):
-    async with db_pool.acquire() as conn:
-        await conn.execute('''
-            UPDATE cached_media 
-            SET audio_file_id = $2
-            WHERE url_hash = $1
-        ''', url_hash, audio_file_id)
+# save_cached_audio removed
