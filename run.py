@@ -23,8 +23,8 @@ async def main():
     
     # Initialize Bot and Dispatcher
     if USE_LOCAL_API:
-        logger.info(f"Local Bot API server ishlatilmoqda: {LOCAL_API_SERVER_URL}")
-        local_server = TelegramAPIServer.from_base(LOCAL_API_SERVER_URL)
+        logger.info(f"Local Bot API server ishlatilmoqda (is_local=True): {LOCAL_API_SERVER_URL}")
+        local_server = TelegramAPIServer.from_base(LOCAL_API_SERVER_URL, is_local=True)
         bot = Bot(token=BOT_TOKEN, server=local_server)
     else:
         bot = Bot(token=BOT_TOKEN)

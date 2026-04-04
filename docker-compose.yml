@@ -23,8 +23,8 @@ services:
       - TELEGRAM_API_HASH=${TELEGRAM_API_HASH}
       - TELEGRAM_LOCAL=1
     volumes:
-      - downloads_data:/var/lib/telegram-bot-api
-    command: --local --api-id=${TELEGRAM_API_ID} --api-hash=${TELEGRAM_API_HASH}
+      - downloads_data:/app/downloads
+    command: --local --api-id=${TELEGRAM_API_ID} --api-hash=${TELEGRAM_API_HASH} --dir=/app/downloads
     networks:
       - bot-network
 
