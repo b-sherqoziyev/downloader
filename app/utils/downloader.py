@@ -58,7 +58,7 @@ def sync_download_video(url, is_youtube, progress_callback=None):
             },
             'extractor_args': {
                 'youtube': {
-                    'player_client': ['android', 'web', 'mweb'],
+                    'player_client': ['android', 'ios'],
                     'player_skip': ['configs', 'js'],
                 },
                 'pinterest': {
