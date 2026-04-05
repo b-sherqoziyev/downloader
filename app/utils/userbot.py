@@ -40,6 +40,15 @@ async def upload_large_file(file_path: str, caption: str, progress_callback=None
                 # so we just pass progress percent for now
                 progress_callback(percent, 0, 0)
 
+        # Smart Peer Resolution: Pyrogram needs to 'see' the chat in its cache
+        try:
+            await userbot.get_chat(STORAGE_CHANNEL_ID)
+        except Exception:
+            logger.info("Peer resolution failed. Iterating dialogs to find chat...")
+            async for dialog in userbot.get_dialogs(limit=50):
+                if dialog.chat.id == STORAGE_CHANNEL_ID:
+                    break
+        
         # Upload to Storage Channel
         sent_msg = await userbot.send_video(
             chat_id=STORAGE_CHANNEL_ID,
