@@ -145,6 +145,7 @@ async def handle_video_url(message: Message, state: FSMContext):
                     await loader_message.edit_text("Fayl hajmi 50MB dan katta. Telegramga yuklanmoqda... 📤")
                     
                     # Restart progress for Userbot upload phase (Phase 2)
+                    progress_data['percent'] = 0
                     progress_data['done'] = False
                     progress_task = asyncio.create_task(animate_progress(loader_message, "Telegramga yuklanmoqda...", progress_data))
                     
@@ -239,7 +240,7 @@ async def cancel_download_handler(callback: types.CallbackQuery):
         task.cancel() # This will raise asyncio.CancelledError in the handle_video_url task
         await callback.answer("Yuklash bekor qilindi.")
         try:
-            await callback.message.edit_text("❌ Yuklash foydalanuvchi tomonidan bekor qilindi.")
+            await callback.message.edit_text("Bekor qilindi ❌")
         except Exception:
             pass
     else:

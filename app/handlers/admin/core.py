@@ -5,14 +5,38 @@ from aiogram.filters import Command
 from aiogram.types import Message, CallbackQuery
 from aiogram.fsm.context import FSMContext
 
-from app.config import ADMIN_IDS
+from app.config import ADMIN_IDS, STORAGE_CHANNEL_ID
 from app.database import get_stats
+from app.utils.userbot import userbot
 from .keyboards import get_admin_keyboard, get_channels_menu_keyboard
 
 router = Router()
 
 def is_admin(user_id: int) -> bool:
     return user_id in ADMIN_IDS
+
+@router.message(Command("userbot_status"))
+async def userbot_status_check(message: Message):
+    if not is_admin(message.from_user.id):
+        return
+        
+    if not userbot:
+        await message.answer("❌ Userbot konfiguratsiyasi topilmadi (API_ID/API_HASH/SESSION_STRING).")
+        return
+        
+    status_text = "🤖 <b>Userbot Holati:</b>\n"
+    status_text += f"✅ Ulanish: {'Barchasi joyida' if userbot.is_connected else 'Ulanmagan ❌'}\n"
+    
+    try:
+        test_msg = await userbot.send_message(STORAGE_CHANNEL_ID, f"🔄 Userbot ulanish testi: {datetime.now().strftime('%H:%M:%S')}")
+        if test_msg:
+            status_text += "📂 Storage Kanalga kirish: Muvaffaqiyatli ✅"
+        else:
+            status_text += "📂 Storage Kanalga kirish: Xatolik ❌"
+    except Exception as e:
+        status_text += f"📂 Storage Kanalga kirish: Xatolik ({str(e)}) ❌"
+        
+    await message.answer(status_text, parse_mode='HTML')
 
 @router.message(Command("admin"))
 async def admin_panel(message: Message, state: FSMContext):
