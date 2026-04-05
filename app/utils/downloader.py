@@ -46,14 +46,10 @@ def sync_download_video(url, is_youtube, progress_callback=None):
         ydl_opts = {
             'format': 'bestvideo+bestaudio/best',
             'outtmpl': os.path.join(final_download_path, '%(title)s.%(ext)s'),
-            'quiet': True,
-            'no_warnings': True,
+            'quiet': False, # Verbose logging to debug format issues
+            'no_warnings': False,
             'nocheckcertificate': True,
             'progress_hooks': [ydl_progress_hook],
-            'http_headers': {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
-            },
             'extractor_args': {
                 'pinterest': {
                     'referer': ['https://www.pinterest.com/'],
