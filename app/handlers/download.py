@@ -29,16 +29,18 @@ async def animate_progress(message: Message, base_text: str, current_data: dict)
         filled = int(percent / 5)
         bar = "█" * filled + "░" * (20 - filled)
         
-        # Format speed
-        speed_kb = speed / 1024
-        speed_text = f"{speed_kb:.1f} KB/s" if speed_kb < 1024 else f"{speed_kb/1024:.1f} MB/s"
-        
         new_text = (
             f"{base_text}\n\n"
-            f"[{bar}] {percent:.1f}%\n"
-            f"⚡ Tezlik: {speed_text}\n"
-            f"⏳ Qolgan vaqt: {eta}s"
+            f"[{bar}] {percent:.1f}%"
         )
+        
+        if speed > 0:
+            speed_kb = speed / 1024
+            speed_text = f"{speed_kb:.1f} KB/s" if speed_kb < 1024 else f"{speed_kb/1024:.1f} MB/s"
+            new_text += f"\n⚡ Tezlik: {speed_text}"
+            
+        if eta > 0:
+            new_text += f"\n⏳ Qolgan vaqt: {eta}s"
         
         if new_text != last_text:
             try:
@@ -133,11 +135,11 @@ async def handle_video_url(message: Message, state: FSMContext):
         if "file is too large" in str(e).lower() or (os.path.exists(video_path) and os.path.getsize(video_path) > 48 * 1024 * 1024):
             if userbot:
                 try:
-                    await loader_message.edit_text("Fayl hajmi 50MB dan katta. Userbot orqali yuklanmoqda... 📤")
+                    await loader_message.edit_text("Fayl hajmi 50MB dan katta. Telegramga yuklanmoqda... 📤")
                     
-                    # Restart progress for Userbot upload phase
+                    # Restart progress for Userbot upload phase (Phase 2)
                     progress_data['done'] = False
-                    progress_task = asyncio.create_task(animate_progress(loader_message, "Userbot yuklamoqda (2GB gacha)...", progress_data))
+                    progress_task = asyncio.create_task(animate_progress(loader_message, "Telegramga yuklanmoqda...", progress_data))
                     
                     storage_msg = await upload_large_file(video_path, caption, progress_callback)
                     progress_data['done'] = True
