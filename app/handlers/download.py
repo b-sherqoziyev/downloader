@@ -11,6 +11,9 @@ from app.database import get_cached_media, save_cached_video
 from app.utils.downloader import async_download_video, cleanup
 from app.utils.userbot import userbot, upload_large_file
 
+# Global dictionary to track active download tasks for cancellation
+_active_tasks = {} # { (user_id, message_id): asyncio.Task }
+
 router = Router()
 
 def get_url_hash(url: str) -> str:
@@ -44,7 +47,11 @@ async def animate_progress(message: Message, base_text: str, current_data: dict)
         
         if new_text != last_text:
             try:
-                await message.edit_text(new_text)
+                # Add Cancel Button
+                markup = InlineKeyboardMarkup(inline_keyboard=[
+                    [InlineKeyboardButton(text="🚫 Bekor qilish", callback_data=f"cancel_dl:{message.chat.id}:{message.message_id}")]
+                ])
+                await message.edit_text(new_text, reply_markup=markup)
                 last_text = new_text
             except Exception:
                 pass
@@ -72,6 +79,10 @@ async def handle_video_url(message: Message, state: FSMContext):
         return
 
     loader_message = await message.answer("Video tekshirilmoqda...", disable_notification=True)
+    
+    # Store the task in a way that we can cancel it
+    task_key = (message.chat.id, loader_message.message_id)
+    _active_tasks[task_key] = asyncio.current_task()
     
     # 1. Check Cache
     url_hash = get_url_hash(url)
@@ -166,6 +177,11 @@ async def handle_video_url(message: Message, state: FSMContext):
         logger.error(f"Upload error: {e}", exc_info=True)
         await message.reply("Kechirasiz, videoni yuklashda xatolik yuz berdi. Fayl o'ta katta (2GB+) bo'lishi mumkin.")
     finally:
+        # Cleanup task tracking
+        task_key = (message.chat.id, loader_message.message_id)
+        if task_key in _active_tasks:
+            del _active_tasks[task_key]
+            
         # Always cleanup local storage
         if 'result' in locals() and isinstance(result, dict):
             cleanup(result.get("folder", ""))
@@ -211,3 +227,24 @@ async def process_inline_query(inline_query: InlineQuery):
         
     if results:
         await inline_query.answer(results, cache_time=300, is_personal=False)
+
+@router.callback_query(F.data.startswith("cancel_dl:"))
+async def cancel_download_handler(callback: types.CallbackQuery):
+    parts = callback.data.split(":")
+    if len(parts) != 3:
+        return
+        
+    chat_id = int(parts[1])
+    msg_id = int(parts[2])
+    task_key = (chat_id, msg_id)
+    
+    if task_key in _active_tasks:
+        task = _active_tasks[task_key]
+        task.cancel() # This will raise asyncio.CancelledError in the handle_video_url task
+        await callback.answer("Yuklash bekor qilindi.")
+        try:
+            await callback.message.edit_text("❌ Yuklash foydalanuvchi tomonidan bekor qilindi.")
+        except Exception:
+            pass
+    else:
+        await callback.answer("Ushbu yuklash jarayoni allaqachon tugagan yoki topilmadi.")

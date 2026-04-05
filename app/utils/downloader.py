@@ -44,31 +44,34 @@ def sync_download_video(url, is_youtube, progress_callback=None):
     try:
         # yt-dlp is more robust for all supported platforms
         ydl_opts = {
-            'format': 'best',
+            'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
             'outtmpl': os.path.join(final_download_path, '%(title)s.%(ext)s'),
             'quiet': True,
             'no_warnings': True,
             'nocheckcertificate': True,
             'progress_hooks': [ydl_progress_hook],
             'http_headers': {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
                 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
                 'Accept-Language': 'en-US,en;q=0.5',
-                'Referer': 'https://www.pinterest.com/',
             },
             'extractor_args': {
+                'youtube': {
+                    'player_client': ['web', 'mweb', 'android', 'ios'],
+                    'player_skip': ['webpage', 'configs', 'js'],
+                },
                 'pinterest': {
                     'referer': ['https://www.pinterest.com/'],
                 }
             }
         }
         
-        # Specific overrides for YouTube
-        if is_youtube:
-            ydl_opts['extractor_args']['youtube'] = {
-                'player_client': ['android', 'ios'],
-                'skip': ['hls', 'dash']
-            }
+        # Check for cookies.txt in root directory if it exists
+        if os.path.exists('cookies.txt'):
+            ydl_opts['cookiefile'] = 'cookies.txt'
+            logger.info("Using cookies.txt for yt-dlp")
+        
+        # Specific overrides for YouTube removed as they are now in the main ydl_opts
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=True)
