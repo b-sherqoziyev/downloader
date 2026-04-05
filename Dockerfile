@@ -1,9 +1,9 @@
 # Python 3.12 (or any current version) base image
 FROM python:3.12-slim
 
-# Install ffmpeg and required dependencies
+# Install ffmpeg and required dependencies for tgcrypto and others
 RUN apt-get update && \
-    apt-get install -y ffmpeg libsm6 libxext6 && \
+    apt-get install -y ffmpeg libsm6 libxext6 gcc python3-dev build-essential && \
     rm -rf /var/lib/apt/lists/*
 
 # Set working directory
