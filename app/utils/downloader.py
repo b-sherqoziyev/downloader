@@ -44,7 +44,7 @@ def sync_download_video(url, is_youtube, progress_callback=None):
     try:
         # yt-dlp is more robust for all supported platforms
         ydl_opts = {
-            'format': 'best',
+            'format': 'bestvideo+bestaudio/best',
             'outtmpl': os.path.join(final_download_path, '%(title)s.%(ext)s'),
             'quiet': True,
             'no_warnings': True,
@@ -53,14 +53,8 @@ def sync_download_video(url, is_youtube, progress_callback=None):
             'http_headers': {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
                 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
-                'Accept-Language': 'en-US,en;q=0.9',
-                'Sec-Fetch-Mode': 'navigate',
             },
             'extractor_args': {
-                'youtube': {
-                    'player_client': ['android', 'ios'],
-                    'player_skip': ['configs', 'js'],
-                },
                 'pinterest': {
                     'referer': ['https://www.pinterest.com/'],
                 }
