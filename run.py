@@ -2,7 +2,7 @@ import asyncio
 import logging
 from aiogram import Bot, Dispatcher
 from aiogram.fsm.storage.memory import MemoryStorage
-from app.config import BOT_TOKEN
+from app.config import BOT_TOKEN, COOKIES_CONTENT
 from app.database import init_db, close_db
 from app.handlers import base, download
 from app.handlers.admin import router as admin_router
@@ -18,6 +18,15 @@ async def main():
         logger.error("BOT_TOKEN topilmadi! .env faylini tekshiring.")
         return
         
+    # Cookies.txt yaratish (Railway uchun)
+    if COOKIES_CONTENT:
+        try:
+            with open("cookies.txt", "w", encoding="utf-8") as f:
+                f.write(COOKIES_CONTENT)
+            logger.info("Cookies.txt muvaffaqiyatli yaratildi.")
+        except Exception as e:
+            logger.error(f"Cookies.txt yaratishda xato: {e}")
+            
     # Baza ishga tushirish
     await init_db()
     
