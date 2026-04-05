@@ -44,17 +44,4 @@ async def start_handler(message: Message):
             except Exception:
                 pass
             
-    await message.answer(f"""
-👋 <b>Assalomu alaykum, {user.first_name}!</b>
-
-Men <b>YouTube, Instagram, TikTok, Facebook, Pinterest</b> va 1000 dan ortiq boshqa platformalardan videolarni eng yuqori sifatda yuklab beruvchi botman.
-
-🚀 <b>Qanday ishlatish kerak?</b>
-Shunchaki video havolasini (link) yuboring va men uni sizga operativ ravishda yetkazib beraman.
-
-📤 <b>Imkoniyatlar:</b>
-• 2 GB gacha bo'lgan katta videolarni yuklash.
-• Eng yuqori sifat (1080p, 4K).
-• Tezkor va reklamasiz xizmat.
-
-🔗 <i>Link yuboring va sinab ko'ring!</i>""", parse_mode='HTML')
+    await message.answer(f"Salom, {user.first_name}!\n\nVideo yuklash uchun havola yuboring. 📥")

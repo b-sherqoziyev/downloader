@@ -170,11 +170,11 @@ async def async_download_video(url, is_youtube, progress_callback=None):
                 "folder": final_download_path
             }
             
-        return {"success": False, "error": "Barcha yuklash usullari muvaffaqiyatsiz tugadi."}
+        return {"success": False, "error": "Yuklab bo'lmadi ❌"}
         
     except Exception as e:
         logger.error(f"General download error: {e}")
         cleanup(final_download_path)
-        return {"success": False, "error": "Texnik xatolik yuz berdi."}
+        return {"success": False, "error": "Xatolik yuz berdi ☹️"}
 
 # Video extraction logic ends here
