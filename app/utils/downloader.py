@@ -46,15 +46,13 @@ def sync_download_video(url, is_youtube, progress_callback=None):
         ydl_opts = {
             'format': 'bestvideo+bestaudio/best',
             'outtmpl': os.path.join(final_download_path, '%(title)s.%(ext)s'),
-            'quiet': False,
-            'no_warnings': False,
+            'quiet': True,
+            'no_warnings': True,
             'nocheckcertificate': True,
             'progress_hooks': [ydl_progress_hook],
-            'username': 'oauth2', # Trigger OAuth2 flow
-            'password': '',
             'extractor_args': {
                 'youtube': {
-                    'player_client': ['web', 'mweb', 'android', 'ios'],
+                    'player_client': ['android', 'ios', 'web'],
                 },
                 'pinterest': {
                     'referer': ['https://www.pinterest.com/'],
