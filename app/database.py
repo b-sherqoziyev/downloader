@@ -45,6 +45,7 @@ async def init_db():
                 CREATE TABLE IF NOT EXISTS cached_media (
                     url_hash VARCHAR(255) PRIMARY KEY,
                     video_file_id VARCHAR(255),
+                    title TEXT,
                     url TEXT,
                     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
                 );
@@ -183,19 +184,21 @@ async def get_channels_count():
 # Cache Logic
 async def get_cached_media(url_hash):
     async with db_pool.acquire() as conn:
-        row = await conn.fetchrow('SELECT video_file_id, url FROM cached_media WHERE url_hash = $1', url_hash)
+        row = await conn.fetchrow('SELECT video_file_id, title, url FROM cached_media WHERE url_hash = $1', url_hash)
         if row:
             return dict(row)
         return None
 
-async def save_cached_video(url_hash, video_file_id, url=None):
+async def save_cached_video(url_hash, video_file_id, title=None, url=None):
     async with db_pool.acquire() as conn:
         await conn.execute('''
-            INSERT INTO cached_media (url_hash, video_file_id, url)
-            VALUES ($1, $2, $3)
+            INSERT INTO cached_media (url_hash, video_file_id, title, url)
+            VALUES ($1, $2, $3, $4)
             ON CONFLICT (url_hash) DO UPDATE 
-            SET video_file_id = EXCLUDED.video_file_id, url = COALESCE(EXCLUDED.url, cached_media.url)
-        ''', url_hash, video_file_id, url)
+            SET video_file_id = EXCLUDED.video_file_id, 
+                title = COALESCE(EXCLUDED.title, cached_media.title),
+                url = COALESCE(EXCLUDED.url, cached_media.url)
+        ''', url_hash, video_file_id, title, url)
 
 # save_url_to_cache removed as redundant
 

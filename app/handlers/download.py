@@ -92,9 +92,13 @@ async def handle_video_url(message: Message, state: FSMContext):
     
     if cached_data and cached_data.get('video_file_id'):
         video_id = cached_data['video_file_id']
+        title = cached_data.get('title')
+        
+        caption = f"{title}\n\nVia @{me.username}" if title else f"Video - @{me.username}"
+        
         await message.answer_video(
             video_id, 
-            caption=f"Video keshdan yuklandi! ⚡\n\nVia @{me.username}"
+            caption=caption
         )
         await loader_message.delete()
         return
@@ -139,7 +143,7 @@ async def handle_video_url(message: Message, state: FSMContext):
         
         # Extract and Cache File ID
         file_id = sent_message.video.file_id
-        await save_cached_video(url_hash, file_id, url)
+        await save_cached_video(url_hash, file_id, result.get("caption"), url)
         
     except Exception as e:
         # 2. Handle Large File (> 50MB) via Userbot bridge
@@ -163,7 +167,7 @@ async def handle_video_url(message: Message, state: FSMContext):
                             caption=caption
                         )
                         # Cache the successful file_id
-                        await save_cached_video(url_hash, sent_message.video.file_id, url)
+                        await save_cached_video(url_hash, sent_message.video.file_id, result.get("caption"), url)
                         return
                     else:
                         await message.reply("Userbot orqali yuklashda xatolik yuz berdi.")
