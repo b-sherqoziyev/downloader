@@ -44,7 +44,7 @@ def sync_download_video(url, is_youtube, progress_callback=None):
     try:
         # yt-dlp is more robust for all supported platforms
         ydl_opts = {
-            'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
+            'format': 'bestvideo+bestaudio/best',
             'outtmpl': os.path.join(final_download_path, '%(title)s.%(ext)s'),
             'quiet': True,
             'no_warnings': True,
