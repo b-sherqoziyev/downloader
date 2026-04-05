@@ -5,7 +5,13 @@ from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
 from app.database import get_all_channels, get_user, update_user_status
 from app.config import ADMIN_IDS
 
+from datetime import datetime, timedelta
+
 logger = logging.getLogger(__name__)
+
+# Simple TTL Cache for membership status: { (user_id, channel_id): (is_member, expiry_time) }
+_membership_cache = {}
+_CACHE_TTL = timedelta(minutes=5)
 
 class CheckSubscriptionMiddleware(BaseMiddleware):
     async def __call__(
@@ -51,18 +57,34 @@ class CheckSubscriptionMiddleware(BaseMiddleware):
             
         unsubscribed_channels = []
         
+        now = datetime.now()
         for ch in channels:
+            ch_id = ch['channel_id']
+            cache_key = (user_id, ch_id)
+            
+            # Check cache first
+            if cache_key in _membership_cache:
+                is_member, expiry = _membership_cache[cache_key]
+                if now < expiry:
+                    if not is_member:
+                        unsubscribed_channels.append(ch)
+                    continue
+
             try:
-                member_status = await event.bot.get_chat_member(chat_id=ch['channel_id'], user_id=user_id)
-                # Check if member left or got kicked
-                if member_status.status in ['left', 'kicked', 'banned']:
+                member_status = await event.bot.get_chat_member(chat_id=ch_id, user_id=user_id)
+                is_member = member_status.status not in ['left', 'kicked', 'banned']
+                
+                # Update cache
+                _membership_cache[cache_key] = (is_member, now + _CACHE_TTL)
+                
+                if not is_member:
                     unsubscribed_channels.append(ch)
             except Exception as e:
-                # If bot is not admin in channel, or chat not found, we assume they must subscribe
-                # However, to avoid spamming errors, we add it to the list
+                # If bot is not admin in channel, or chat not found, assume not subbed but log if serious
                 unsubscribed_channels.append(ch)
+                _membership_cache[cache_key] = (False, now + _CACHE_TTL) # Negative cache
                 if "chat not found" not in str(e).lower():
-                    logger.warning(f"Could not check membership for {ch['channel_id']}: {e}")
+                    logger.warning(f"Could not check membership for {ch_id}: {e}")
                 
         if unsubscribed_channels:
             buttons = []

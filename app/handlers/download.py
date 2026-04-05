@@ -7,8 +7,9 @@ from aiogram.types import (
     InlineQuery, InlineQueryResultCachedVideo, InlineQueryResultCachedAudio
 )
 from aiogram.fsm.context import FSMContext
-from app.database import get_cached_media, save_cached_video, save_url_to_cache
+from app.database import get_cached_media, save_cached_video
 from app.utils.downloader import async_download_video, cleanup
+from app.utils.userbot import userbot, upload_large_file
 
 router = Router()
 
@@ -77,10 +78,6 @@ async def handle_video_url(message: Message, state: FSMContext):
     me = await message.bot.get_me()
     
     if cached_data and cached_data.get('video_file_id'):
-        # Backward compatibility: if URL is missing in cache, save it now
-        if not cached_data.get('url'):
-            await save_url_to_cache(url_hash, url)
-            
         video_id = cached_data['video_file_id']
         await message.answer_video(
             video_id, 
@@ -120,25 +117,54 @@ async def handle_video_url(message: Message, state: FSMContext):
     markup = None # No buttons for now
     
     try:
-        # Send video and get message objects back to save File ID
+        # 1. Try standard upload for files < 50MB
         video_file = FSInputFile(video_path)
         sent_message = await message.answer_video(
             video_file, 
             caption=caption
         )
         
-        # Extract File ID
+        # Extract and Cache File ID
         file_id = sent_message.video.file_id
-        await save_cached_video(url_hash, file_id, url) # Save URL too for direct audio later
+        await save_cached_video(url_hash, file_id, url)
         
     except Exception as e:
+        # 2. Handle Large File (> 50MB) via Userbot bridge
+        if "file is too large" in str(e).lower() or (os.path.exists(video_path) and os.path.getsize(video_path) > 48 * 1024 * 1024):
+            if userbot:
+                try:
+                    await loader_message.edit_text("Fayl hajmi 50MB dan katta. Userbot orqali yuklanmoqda... 📤")
+                    
+                    # Restart progress for Userbot upload phase
+                    progress_data['done'] = False
+                    progress_task = asyncio.create_task(animate_progress(loader_message, "Userbot yuklamoqda (2GB gacha)...", progress_data))
+                    
+                    storage_msg = await upload_large_file(video_path, caption, progress_callback)
+                    progress_data['done'] = True
+                    await progress_task
+                    
+                    if storage_msg:
+                        # Send directly by file_id (cleanest way, no 'forward' tag)
+                        sent_message = await message.answer_video(
+                            storage_msg.video.file_id,
+                            caption=caption
+                        )
+                        # Cache the successful file_id
+                        await save_cached_video(url_hash, sent_message.video.file_id, url)
+                        return
+                    else:
+                        await message.reply("Userbot orqali yuklashda xatolik yuz berdi.")
+                        return
+                except Exception as ub_err:
+                    import logging
+                    logging.getLogger(__name__).error(f"Userbot fallback error: {ub_err}", exc_info=True)
+
         import logging
         logger = logging.getLogger(__name__)
-        logger.error(f"Download or Upload error: {e}", exc_info=True)
-        # Never send raw exception to user
-        await message.reply("Kechirasiz, videoni yuklashda xatolik yuz berdi. Bu videoning hajmi juda katta bo'lishi mumkin.")
+        logger.error(f"Upload error: {e}", exc_info=True)
+        await message.reply("Kechirasiz, videoni yuklashda xatolik yuz berdi. Fayl o'ta katta (2GB+) bo'lishi mumkin.")
     finally:
-        # Always cleanup
+        # Always cleanup local storage
         if 'result' in locals() and isinstance(result, dict):
             cleanup(result.get("folder", ""))
         
