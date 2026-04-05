@@ -37,14 +37,6 @@ async def animate_progress(message: Message, base_text: str, current_data: dict)
             f"[{bar}] {percent:.1f}%"
         )
         
-        if speed > 0:
-            speed_kb = speed / 1024
-            speed_text = f"{speed_kb:.1f} KB/s" if speed_kb < 1024 else f"{speed_kb/1024:.1f} MB/s"
-            new_text += f"\n⚡ Tezlik: {speed_text}"
-            
-        if eta > 0:
-            new_text += f"\n⏳ Qolgan vaqt: {eta}s"
-        
         if new_text != last_text:
             try:
                 # Add Cancel Button
@@ -120,7 +112,7 @@ async def handle_video_url(message: Message, state: FSMContext):
         await progress_task
         
     if not result["success"]:
-        await message.reply(f"Uzr, videoni yuklab bo'lmadi: {result.get('error', 'Noma`lum xatolik')}")
+        await message.reply(result.get('error', 'Xatolik yuz berdi ☹️'))
         await loader_message.delete()
         return
         
