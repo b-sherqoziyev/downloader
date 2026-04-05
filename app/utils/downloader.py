@@ -38,6 +38,7 @@ def sync_download_video(url, is_youtube, progress_callback=None):
                 progress_callback(percent, speed, eta)
     
     try:
+        from app.config import PO_TOKEN, VISITOR_DATA
         ydl_opts = {
             'format': 'bestvideo+bestaudio/best',
             'outtmpl': os.path.join(final_download_path, '%(title)s.%(ext)s'),
@@ -46,7 +47,11 @@ def sync_download_video(url, is_youtube, progress_callback=None):
             'nocheckcertificate': True,
             'progress_hooks': [ydl_progress_hook],
             'extractor_args': {
-                'youtube': { 'player_client': ['android', 'ios', 'web'] },
+                'youtube': { 
+                    'player_client': ['android', 'ios', 'web'],
+                    'po_token': [PO_TOKEN] if PO_TOKEN else None,
+                    'visitor_data': VISITOR_DATA if VISITOR_DATA else None
+                },
                 'pinterest': { 'referer': ['https://www.pinterest.com/'] }
             }
         }
