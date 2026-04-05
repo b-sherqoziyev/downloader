@@ -50,6 +50,8 @@ async def init_db():
                     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
                 );
             ''')
+            # Migration: Ensure title column exists
+            await conn.execute('ALTER TABLE cached_media ADD COLUMN IF NOT EXISTS title TEXT;')
             
             logger.info("Database initialized successfully.")
     except Exception as e:
